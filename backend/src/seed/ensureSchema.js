@@ -51,6 +51,7 @@ export async function ensureSchema() {
       CREATE TABLE IF NOT EXISTS payments (
         id INT AUTO_INCREMENT PRIMARY KEY,
         rental_id INT NOT NULL,
+        order_id VARCHAR(32) UNIQUE,
         amount DECIMAL(10,2) NOT NULL,
         bank_account VARCHAR(100) NOT NULL,
         proof_url VARCHAR(255) NULL,
@@ -63,5 +64,35 @@ export async function ensureSchema() {
     console.log('[schema] Ensured payments table');
   } catch (e) {
     console.error('[schema] Failed ensure payments', e.message);
+  }
+
+  // Ensure order_id column exists (for older tables without it)
+  try {
+    const [cols] = await pool.query("SHOW COLUMNS FROM payments LIKE 'order_id'");
+    if (cols.length === 0) {
+      await pool.query('ALTER TABLE payments ADD COLUMN order_id VARCHAR(32) UNIQUE');
+      console.log('[schema] Added payments.order_id');
+    }
+  } catch (e) {
+    console.error('[schema] Failed ensure payments.order_id', e.message);
+  }
+
+  // Backfill missing order_id for existing payments
+  try {
+    const [rows] = await pool.query("SELECT id, created_at FROM payments WHERE order_id IS NULL OR order_id = ''");
+    if (rows.length > 0) {
+      for (const row of rows) {
+        const dt = new Date(row.created_at || Date.now());
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+        const orderId = `PM-${y}${m}${d}-${rand}`;
+        await pool.query('UPDATE payments SET order_id = ? WHERE id = ?', [orderId, row.id]);
+      }
+      console.log(`[schema] Backfilled order_id for ${rows.length} payments`);
+    }
+  } catch (e) {
+    console.error('[schema] Failed backfill payments.order_id', e.message);
   }
 }

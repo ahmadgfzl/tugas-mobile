@@ -900,15 +900,17 @@
     <section class="content-section" id="paymentsSection">
       <div class="section-header">
         <h3><i class="fas fa-money-check-alt"></i> Pembayaran</h3>
-        <button class="btn-add" onclick="(async()=>{await loadPayments(); renderPaymentsTable(); updateStats();})();">
-          <i class="fas fa-sync"></i> Muat Ulang
-        </button>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input id="paymentSearch" type="text" placeholder="Cari No. Order..." style="padding:10px 12px;border:2px solid #e0e0e0;border-radius:8px;font-size:13px;width:220px;" oninput="onPaymentSearch(this.value)"/>
+          <button class="btn-add" onclick="(async()=>{await loadPayments(); renderPaymentsTable(); updateStats();})();"><i class="fas fa-sync"></i> Muat Ulang</button>
+        </div>
       </div>
       <div class="table-wrapper">
         <table id="paymentsTable">
           <thead>
             <tr>
               <th>ID</th>
+              <th>No. Order</th>
               <th>Rental</th>
               <th>Jumlah</th>
               <th>Rekening</th>
@@ -1038,6 +1040,8 @@ if (typeof axios !== 'undefined') {
 let motorcyclesData = [];
 let rentalsData = [];
 let paymentsData = [];
+let rentalSearchTerm = '';
+let paymentSearchTerm = '';
 
 // Initialize
 if (token) {
@@ -1096,6 +1100,9 @@ async function initDashboard() {
   updateStats();
   updateRecentActivity();
   renderPaymentsTable();
+  // set up rentals search if element exists
+  const rs = document.getElementById('rentalSearch');
+  if (rs && !rs.__wired) { rs.__wired = true; rs.addEventListener('input', (e)=> onRentalSearch(e.target.value)); }
   // Auto refresh every 10 seconds to reflect new data
   if (!window.__autoRefreshInterval) {
     window.__autoRefreshInterval = setInterval(async () => {
@@ -1109,6 +1116,10 @@ async function initDashboard() {
       }
     }, 10000);
   }
+}
+function onPaymentSearch(val) {
+  paymentSearchTerm = (val || '').trim().toLowerCase();
+  renderPaymentsTable();
 }
 
 // Navigation
@@ -1359,17 +1370,28 @@ async function updatePaymentStatus(id, status) {
 function renderPaymentsTable() {
   const tbody = document.querySelector('#paymentsTable tbody');
   if (!tbody) return;
-  if (paymentsData.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-money-check-alt"></i><p>Belum ada pembayaran</p></td></tr>';
+  const filtered = paymentSearchTerm
+    ? paymentsData.filter(p => String(p.order_id || '').toLowerCase().includes(paymentSearchTerm))
+    : paymentsData;
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="fas fa-money-check-alt"></i><p>Belum ada pembayaran</p></td></tr>';
     return;
   }
-  tbody.innerHTML = paymentsData.map(p => `
+  tbody.innerHTML = filtered.map(p => `
     <tr>
       <td>${p.id}</td>
+      <td>
+        ${p.order_id ? `<span style="display:inline-flex;align-items:center;gap:6px;">${p.order_id} <button onclick="navigator.clipboard.writeText('${p.order_id}');alert('Order ID disalin');" title="Copy" style="border:none;background:#e0e0e0;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:12px;">Copy</button></span>` : '-'}
+      </td>
       <td>${p.rental_id}</td>
-      <td><strong>${formatCurrency(p.amount)}</strong></td>
+      <td>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <strong>${formatCurrency(p.amount)}</strong>
+          ${p.created_at ? `<span style="color:#666;font-size:12px;">Dibuat: ${formatDate(p.created_at)} <em style="color:#999;">(${relativeTime(p.created_at)})</em></span>` : ''}
+        </div>
+      </td>
       <td>${p.bank_account}</td>
-      <td>${p.proof_url ? `<a href="${p.proof_url}" target="_blank">Lihat Bukti</a>` : '-'}</td>
+      <td>${p.proof_url ? `<a href="${p.proof_url}" target="_blank">Lihat Bukti Pembayaran</a>` : '-'}</td>
       <td>${getStatusBadge(p.status)}</td>
       <td>
         <select onchange="updatePaymentStatus(${p.id}, this.value)" style="padding:6px;border-radius:6px;border:2px solid #e0e0e0;font-size:12px;">
@@ -1391,14 +1413,56 @@ function renderRentalTable() {
     return;
   }
   
-  tbody.innerHTML = rentalsData.map(r => `
+  // pick latest payment per rental by created_at
+  const latestByRental = {};
+  for (const p of paymentsData) {
+    const key = p.rental_id;
+    const prev = latestByRental[key];
+    if (!prev) latestByRental[key] = p;
+    else {
+      const a = new Date(p.created_at || 0).getTime();
+      const b = new Date(prev.created_at || 0).getTime();
+      if (a >= b) latestByRental[key] = p;
+    }
+  }
+  const term = (rentalSearchTerm || '').toLowerCase();
+  const filteredRentals = term
+    ? rentalsData.filter(r => {
+        const pay = latestByRental[r.id];
+        const orderId = pay && pay.order_id ? String(pay.order_id).toLowerCase() : '';
+        const name = String(r.user_name || '').toLowerCase();
+        const motor = `${String(r.brand || '').toLowerCase()} ${String(r.model || '').toLowerCase()}`;
+        return orderId.includes(term) || name.includes(term) || motor.includes(term);
+      })
+    : rentalsData;
+
+  tbody.innerHTML = filteredRentals.map(r => {
+    const pay = latestByRental[r.id];
+    let orderId = pay && pay.order_id ? pay.order_id : '-';
+    if (orderId === '-' && r.start_date && r.id) {
+      try {
+        const dt = new Date(r.start_date);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        orderId = `PM-${y}${m}${d}-${String(r.id).padStart(4, '0')}`;
+      } catch (_) {}
+    }
+    return `
     <tr>
       <td>${r.id}</td>
       <td>${r.user_name || '-'}</td>
       <td>${r.brand} ${r.model}</td>
       <td>${formatDate(r.start_date)} - ${formatDate(r.end_date)}</td>
       <td><strong>${formatCurrency(r.total_price)}</strong></td>
-      <td>${getStatusBadge(r.status)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;justify-content:center;">
+          ${getStatusBadge(r.status)}
+          <span style="background:#f0f0f0;padding:4px 8px;border-radius:6px;font-size:12px;">No. Order: ${orderId}</span>
+          ${orderId !== '-' ? `<button onclick="navigator.clipboard.writeText('${orderId}');alert('Order ID disalin');" title="Copy" style="border:none;background:#e0e0e0;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:12px;">Copy</button>` : ''}
+          ${pay && pay.created_at ? `<span style="color:#666;font-size:12px;">Dibuat: ${formatDate(pay.created_at)} <em style=\"color:#999;\">(${relativeTime(pay.created_at)})</em></span>` : ''}
+        </div>
+      </td>
       <td>
         <select onchange="updateRentalStatus(${r.id}, this.value)" style="padding:6px;border-radius:6px;border:2px solid #e0e0e0;font-size:12px;">
           <option value="">-- Ubah Status --</option>
@@ -1409,7 +1473,12 @@ function renderRentalTable() {
         </select>
       </td>
     </tr>
-  `).join('');
+  `}).join('');
+}
+
+function onRentalSearch(val) {
+  rentalSearchTerm = (val || '').trim();
+  renderRentalTable();
 }
 
 // Modal Functions
@@ -1631,6 +1700,23 @@ function formatDate(dateStr) {
   } catch (e) {
     return dateStr;
   }
+}
+
+function relativeTime(dateStr) {
+  try {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const sec = Math.floor(diffMs / 1000);
+    if (sec < 60) return 'baru saja';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min} menit lalu`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr} jam lalu`;
+    const day = Math.floor(hr / 24);
+    if (day < 7) return `${day} hari lalu`;
+    return formatDate(dateStr);
+  } catch (e) { return ''; }
 }
 
 function getStatusBadge(status) {

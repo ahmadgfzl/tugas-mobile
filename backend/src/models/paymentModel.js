@@ -2,9 +2,17 @@ import { pool } from '../db/index.js';
 
 export const PaymentModel = {
   async create({ rental_id, amount, bank_account, proof_url }) {
+    // Generate simple order_id: PM-YYYYMMDD-XXXX (random suffix)
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const order_id = `PM-${y}${m}${d}-${rand}`;
+
     const [res] = await pool.query(
-      'INSERT INTO payments (rental_id, amount, bank_account, proof_url) VALUES (?,?,?,?)',
-      [rental_id, amount, bank_account, proof_url || null]
+      'INSERT INTO payments (rental_id, order_id, amount, bank_account, proof_url) VALUES (?,?,?,?,?)',
+      [rental_id, order_id, amount, bank_account, proof_url || null]
     );
     return this.findById(res.insertId);
   },

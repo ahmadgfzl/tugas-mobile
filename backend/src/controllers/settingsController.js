@@ -14,10 +14,19 @@ export function getPaymentSettings(req, res) {
 export function updatePaymentSettings(req, res) {
   const { bank_name, account_number, account_name, whatsapp_phone } = req.body || {};
   const p = config.payment;
-  if (typeof bank_name === 'string') p.bankName = bank_name;
-  if (typeof account_number === 'string') p.accountNumber = account_number;
-  if (typeof account_name === 'string') p.accountName = account_name;
-  if (typeof whatsapp_phone === 'string') p.whatsappPhone = whatsapp_phone;
+
+  const bn = bank_name === undefined ? undefined : String(bank_name).trim();
+  const an = account_number === undefined ? undefined : String(account_number).trim();
+  const aa = account_name === undefined ? undefined : String(account_name).trim();
+  const wp = whatsapp_phone === undefined ? undefined : String(whatsapp_phone).trim();
+
+  if (wp !== undefined) {
+    p.whatsappPhone = wp;
+  }
+  if (bn !== undefined) p.bankName = bn;
+  if (an !== undefined) p.accountNumber = an;
+  if (aa !== undefined) p.accountName = aa;
+
   return success(res, {
     bank_name: p.bankName,
     account_number: p.accountNumber,

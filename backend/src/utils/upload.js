@@ -32,7 +32,7 @@ const storage = multer.diskStorage({
 });
 
 function fileFilter (req, file, cb) {
-  const allowedMimes = ['image/jpeg','image/jpg','image/png','image/webp','image/heic','image/heif','application/octet-stream'];
+  const allowedMimes = ['image/jpeg','image/jpg','image/png','image/webp','image/heic','image/heif'];
   const ext = (path.extname(file.originalname) || '').toLowerCase();
   const allowedExts = ['.jpeg','.jpg','.png','.webp','.heic','.heif'];
   const mimeOk = allowedMimes.includes((file.mimetype || '').toLowerCase());

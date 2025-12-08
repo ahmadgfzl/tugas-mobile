@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart' as launcher;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/payment_service.dart';
-import '../utils/api_endpoints.dart';
 import 'package:provider/provider.dart';
 import '../providers/rental_provider.dart';
 
@@ -17,6 +16,8 @@ class RentalsScreen extends StatefulWidget {
 class _RentalsScreenState extends State<RentalsScreen> {
   final Set<int> _proofUploadedRentalIds = <int>{};
   final Map<int, String> _proofUrls = <int, String>{};
+  final Map<int, String> _orderIds = <int, String>{};
+  final Map<int, String> _orderCreatedAts = <int, String>{};
   @override
   void initState() {
     super.initState();
@@ -32,12 +33,31 @@ class _RentalsScreenState extends State<RentalsScreen> {
       try {
         final svc = PaymentService();
         final items = await svc.listMyPayments();
+        // Choose latest payment per rental by created_at
+        final Map<int, Map<String, dynamic>> latest = {};
         for (final p in items) {
-          if ((p['proof_url'] ?? '') != '') {
-            _proofUploadedRentalIds.add(p['rental_id'] as int);
-            _proofUrls[p['rental_id'] as int] = p['proof_url'] as String;
+          final rid = (p['rental_id'] as num).toInt();
+          final prev = latest[rid];
+          if (prev == null) {
+            latest[rid] = p;
+          } else {
+            final a = DateTime.tryParse(p['created_at'] ?? '')?.millisecondsSinceEpoch ?? 0;
+            final b = DateTime.tryParse(prev['created_at'] ?? '')?.millisecondsSinceEpoch ?? 0;
+            if (a >= b) latest[rid] = p;
           }
         }
+        latest.forEach((rid, p) {
+          if ((p['proof_url'] ?? '') != '') {
+            _proofUploadedRentalIds.add(rid);
+            _proofUrls[rid] = p['proof_url'] as String;
+          }
+          if ((p['order_id'] ?? '') != '') {
+            _orderIds[rid] = p['order_id'] as String;
+          }
+          if ((p['created_at'] ?? '') != '') {
+            _orderCreatedAts[rid] = p['created_at'] as String;
+          }
+        });
         // Persist merged set
         try {
           final prefs = await SharedPreferences.getInstance();
@@ -117,6 +137,9 @@ class _RentalsScreenState extends State<RentalsScreen> {
       if (proof == null) return;
 
       final payment = await svc.createPayment(rentalId: rentalId, amount: amount, bankAccount: bankInfo);
+      if ((payment.orderId ?? '').isNotEmpty) {
+        _orderIds[rentalId] = payment.orderId!;
+      }
       await svc.uploadProof(paymentId: payment.id, filePath: proof.path);
       if (!mounted) return;
       _proofUploadedRentalIds.add(rentalId);
@@ -265,6 +288,26 @@ class _RentalsScreenState extends State<RentalsScreen> {
                               ],
                             ),
                             const SizedBox(height: 16),
+                            // Single order number row (with fallback)
+                            _buildOrderIdRow(r.id, r.startDate, _orderIds[r.id]),
+                            if ((_orderCreatedAts[r.id] ?? '').isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Order dibuat pada ${_formatDateTime(_orderCreatedAts[r.id]!)}',
+                                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                    ),
+                                  ),
+                                  Text(
+                                    _relativeTime(_orderCreatedAts[r.id]!),
+                                    style: TextStyle(color: Colors.grey[500], fontSize: 12, fontStyle: FontStyle.italic),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            const SizedBox(height: 8),
                             
                             // Date info
                             Row(
@@ -336,6 +379,7 @@ class _RentalsScreenState extends State<RentalsScreen> {
                               ),
                               const SizedBox(height: 8),
                               if (_proofUploadedRentalIds.contains(r.id)) ...[
+                                const SizedBox(height: 6),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
@@ -389,9 +433,9 @@ class _RentalsScreenState extends State<RentalsScreen> {
                                       } catch (_) {}
                                       final message = Uri.encodeComponent('Halo Admin, saya ingin mengambil motor untuk sewa #${r.id}.');
                                       final uri = Uri.parse('https://wa.me/$phone?text=$message');
-                                      if (await launcher.canLaunchUrl(uri)) {
+                                      try {
                                         await launcher.launchUrl(uri, mode: launcher.LaunchMode.externalApplication);
-                                      } else {
+                                      } catch (_) {
                                         ScaffoldMessenger.of(context).showSnackBar(
                                           const SnackBar(content: Text('Tidak dapat membuka WhatsApp')),
                                         );
@@ -406,24 +450,78 @@ class _RentalsScreenState extends State<RentalsScreen> {
                                     ),
                                   ),
                                 ),
-                                if (_proofUrls[r.id] != null && _proofUrls[r.id]!.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  TextButton.icon(
-                                    onPressed: () async {
-                                      final url = ApiConfig.absolute(_proofUrls[r.id]!);
-                                      final uri = Uri.parse(url);
-                                      if (await launcher.canLaunchUrl(uri)) {
-                                        await launcher.launchUrl(uri, mode: launcher.LaunchMode.externalApplication);
-                                      } else {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Tidak dapat membuka bukti')),
-                                        );
+                                const SizedBox(height: 8),
+                                TextButton.icon(
+                                  onPressed: () async {
+                                    try {
+                                      // Fetch latest payment for this rental
+                                      final items = await PaymentService().listMyPayments();
+                                      Map<String, dynamic>? latest;
+                                      for (final p in items) {
+                                        if ((p['rental_id'] as num).toInt() == r.id) {
+                                          if (latest == null) { latest = p; }
+                                          else {
+                                            final a = DateTime.tryParse(p['created_at'] ?? '')?.millisecondsSinceEpoch ?? 0;
+                                            final b = DateTime.tryParse(latest['created_at'] ?? '')?.millisecondsSinceEpoch ?? 0;
+                                            if (a >= b) latest = p;
+                                          }
+                                        }
                                       }
-                                    },
-                                    icon: const Icon(Icons.open_in_new),
-                                    label: const Text('Lihat Bukti'),
-                                  ),
-                                ],
+                                      if (latest == null) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Data pembayaran tidak ditemukan')),
+                                        );
+                                        return;
+                                      }
+                                      final settings = await PaymentService().fetchBankAccountSettings();
+                                      final bankInfo = '${settings['bank_name']} ${settings['account_number']} a.n ${settings['account_name']}';
+                                      // Show receipt dialog
+                                      // User sees summary; proof image/link is not shown here
+                                      // They can screenshot or use OS print from share menu if available
+                                      // Keep it lightweight: no extra packages
+                                      //
+                                      if (!mounted) return;
+                                      await showDialog<void>(
+                                        context: context,
+                                        builder: (ctx) {
+                                          return AlertDialog(
+                                            title: const Text('Struk Pembayaran'),
+                                            content: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(children: [
+                                                  const Icon(Icons.confirmation_number, size: 16),
+                                                  const SizedBox(width: 6),
+                                                  Text('No. Order: ${latest!['order_id'] ?? _orderIds[r.id] ?? '-'}'),
+                                                ]),
+                                                const SizedBox(height: 8),
+                                                Text('Tanggal: ' + _formatDateTime(latest['created_at'] ?? '')),
+                                                const SizedBox(height: 8),
+                                                Text('Metode: Transfer Bank'),
+                                                const SizedBox(height: 8),
+                                                Text('Tujuan: ' + bankInfo),
+                                                const SizedBox(height: 8),
+                                                Text('Jumlah: Rp ' + _formatPrice((latest['amount'] ?? 0) as num)),
+                                                const SizedBox(height: 12),
+                                                const Text('Catatan: Simpan struk ini sebagai bukti pembayaran.'),
+                                              ],
+                                            ),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
+                                            ],
+                                          );
+                                        },
+                                      );
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Gagal menampilkan struk: $e')),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(Icons.receipt_long),
+                                  label: const Text('Cetak Bukti Pembayaran'),
+                                ),
                               ]
                             ],
                           ],
@@ -443,5 +541,71 @@ class _RentalsScreenState extends State<RentalsScreen> {
     } catch (e) {
       return dateStr;
     }
+  }
+
+  String _fallbackOrderIdForRental(int rentalId, String startDate) {
+    try {
+      final dt = DateTime.parse(startDate);
+      final y = dt.year.toString();
+      final m = dt.month.toString().padLeft(2, '0');
+      final d = dt.day.toString().padLeft(2, '0');
+      return 'PM-' + y + m + d + '-' + rentalId.toString().padLeft(4, '0');
+    } catch (e) {
+      return 'PM-' + rentalId.toString().padLeft(4, '0');
+    }
+  }
+
+  String _formatDateTime(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+      final hh = date.hour.toString().padLeft(2, '0');
+      final mm = date.minute.toString().padLeft(2, '0');
+      return '${date.day} ${months[date.month - 1]} ${date.year} ${hh}:${mm}';
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  String _relativeTime(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final diff = now.difference(date);
+      if (diff.inSeconds < 60) return 'baru saja';
+      if (diff.inMinutes < 60) return '${diff.inMinutes} menit lalu';
+      if (diff.inHours < 24) return '${diff.inHours} jam lalu';
+      if (diff.inDays < 7) return '${diff.inDays} hari lalu';
+      // Fallback to date only for older entries
+      return _formatDate(dateStr);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  Widget _buildOrderIdRow(int rentalId, String startDate, String? orderId) {
+    final id = (orderId ?? '').isNotEmpty ? orderId! : _fallbackOrderIdForRental(rentalId, startDate);
+    if (id.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.confirmation_number, size: 16),
+          const SizedBox(width: 6),
+          Expanded(child: Text('No. Order: ' + id)),
+          IconButton(
+            icon: const Icon(Icons.copy, size: 16),
+            tooltip: 'Copy No. Order',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: id));
+              // ignore: use_build_context_synchronously
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No. Order disalin')),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 }

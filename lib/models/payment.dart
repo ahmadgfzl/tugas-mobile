@@ -6,6 +6,7 @@ class Payment {
   final String status;
   final String? proofUrl;
   final String? createdAt;
+  final String? orderId;
 
   Payment({
     required this.id,
@@ -15,6 +16,7 @@ class Payment {
     required this.status,
     this.proofUrl,
     this.createdAt,
+    this.orderId,
   });
 
   factory Payment.fromJson(Map<String, dynamic> j) {
@@ -26,6 +28,7 @@ class Payment {
       status: j['status'] ?? 'pending',
       proofUrl: j['proof_url'] as String?,
       createdAt: j['created_at'] as String?,
+      orderId: j['order_id'] as String?,
     );
   }
 }
