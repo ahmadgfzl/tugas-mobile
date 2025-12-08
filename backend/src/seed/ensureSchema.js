@@ -44,4 +44,24 @@ export async function ensureSchema() {
   } catch (e) {
     console.error('[schema] Failed ensure users.avatar_url', e.message);
   }
+
+  // Payments table for bank transfer proof and status
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        rental_id INT NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        bank_account VARCHAR(100) NOT NULL,
+        proof_url VARCHAR(255) NULL,
+        status ENUM('pending','confirmed','rejected') DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_pay_rental FOREIGN KEY (rental_id)
+          REFERENCES rentals(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
+    console.log('[schema] Ensured payments table');
+  } catch (e) {
+    console.error('[schema] Failed ensure payments', e.message);
+  }
 }

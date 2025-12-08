@@ -15,6 +15,10 @@ const userUploadDir = path.join(__dirname, '../../public/uploads/users');
 if (!fs.existsSync(userUploadDir)) {
   fs.mkdirSync(userUploadDir, { recursive: true });
 }
+const paymentsUploadDir = path.join(__dirname, '../../public/uploads/payments');
+if (!fs.existsSync(paymentsUploadDir)) {
+  fs.mkdirSync(paymentsUploadDir, { recursive: true });
+}
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -54,6 +58,18 @@ const userStorage = multer.diskStorage({
   }
 });
 export const userAvatarUpload = multer({ storage: userStorage, fileFilter, limits: { fileSize: 2 * 1024 * 1024 } });
+
+// Payment proof upload
+const paymentStorage = multer.diskStorage({
+  destination: function (req, file, cb) { cb(null, paymentsUploadDir); },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const ts = Date.now();
+    const pid = req.params.id || 'payment';
+    cb(null, `${pid}_${ts}${ext}`);
+  }
+});
+export const paymentProofUpload = multer({ storage: paymentStorage, fileFilter, limits: { fileSize: 4 * 1024 * 1024 } });
 
 export function removeIfExists(relPath) {
   if(!relPath) return;

@@ -13,5 +13,11 @@ export const config = {
   jwt: {
     secret: process.env.JWT_SECRET || 'devsecret',
     expires: process.env.TOKEN_EXPIRES || '7d'
+  },
+  payment: {
+    bankName: process.env.BANK_NAME || 'BCA',
+    accountNumber: process.env.BANK_ACCOUNT || '8421361606',
+    accountName: process.env.BANK_ACCOUNT_NAME || 'Ahmad Gibran Faizal',
+    whatsappPhone: process.env.WHATSAPP_PHONE || '6281290240404',
   }
 };

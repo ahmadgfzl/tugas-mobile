@@ -9,6 +9,8 @@ import authRoutes from './routes/authRoutes.js';
 import motorcycleRoutes from './routes/motorcycleRoutes.js';
 import rentalRoutes from './routes/rentalRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import settingsRoutes from './routes/settingsRoutes.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -26,6 +28,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/motorcycles', motorcycleRoutes);
 app.use('/api/rentals', rentalRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Centralized error handler to return JSON for errors (including Multer)
 // eslint-disable-next-line no-unused-vars

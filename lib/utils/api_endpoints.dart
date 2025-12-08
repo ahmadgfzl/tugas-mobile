@@ -17,6 +17,14 @@ class ApiConfig {
   static String motorcycleImages(int id) => '$motorcycles/$id/images';
   static String motorcycleDeleteImage(int id, int imageId) => '$motorcycles/$id/images/$imageId';
 
+  // Payments
+  static const String payments = '$baseUrl/payments';
+  static const String paymentsMy = '$payments/my';
+  static String paymentProof(int id) => '$payments/$id/proof';
+
+  // Settings
+  static const String settingsPayment = '$baseUrl/settings/payment';
+
   // Build absolute URL for relative file path (e.g. /uploads/...) based on API base host.
   static String absolute(String maybeRelative) {
     if (maybeRelative.startsWith('http://') || maybeRelative.startsWith('https://')) return maybeRelative;
