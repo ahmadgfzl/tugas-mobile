@@ -7,7 +7,10 @@ import 'package:http/http.dart' as http;
 
 class AuthService {
   Future<UserModel?> login(String email, String password) async {
-    final res = await ApiClient.post(ApiConfig.authLogin, { 'email': email, 'password': password });
+    final res = await ApiClient.post(ApiConfig.authLogin, {
+      'email': email,
+      'password': password,
+    });
     final data = jsonDecode(res.body);
     if (res.statusCode == 200 && data['success'] == true) {
       final prefs = await SharedPreferences.getInstance();
@@ -18,7 +21,11 @@ class AuthService {
   }
 
   Future<bool> register(String name, String email, String password) async {
-    final res = await ApiClient.post(ApiConfig.authRegister, { 'name': name, 'email': email, 'password': password });
+    final res = await ApiClient.post(ApiConfig.authRegister, {
+      'name': name,
+      'email': email,
+      'password': password,
+    });
     final data = jsonDecode(res.body);
     if (res.statusCode == 200 && data['success'] == true) {
       return true;
@@ -41,8 +48,16 @@ class AuthService {
     throw Exception(data['message'] ?? 'Failed load profile');
   }
 
-  Future<UserModel?> updateMe({required String name, required String email, String? password}) async {
-    final body = { 'name': name, 'email': email, if (password != null && password.isNotEmpty) 'password': password };
+  Future<UserModel?> updateMe({
+    required String name,
+    required String email,
+    String? password,
+  }) async {
+    final body = {
+      'name': name,
+      'email': email,
+      if (password != null && password.isNotEmpty) 'password': password,
+    };
     final res = await ApiClient.put(ApiConfig.usersMe, body);
     final data = jsonDecode(res.body);
     if (res.statusCode == 200 && data['success'] == true) {
@@ -52,7 +67,11 @@ class AuthService {
     throw Exception(data['message'] ?? 'Failed update profile');
   }
 
-  Future<bool> changePassword({required String currentPassword, required String newPassword, required String confirmPassword}) async {
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
     final body = {
       'current_password': currentPassword,
       'new_password': newPassword,
@@ -91,18 +110,5 @@ class AuthService {
       return UserModel.fromJson(data['data']);
     }
     throw Exception(data['message'] ?? 'Failed upload avatar');
-  }
-
-  Future<bool> forgotPassword(String email) async {
-    // Attempt to call backend if available; otherwise, simulate success for UX flow
-    try {
-      final res = await ApiClient.post(ApiConfig.authForgot, { 'email': email });
-      if (res.statusCode == 200) return true;
-      // For non-200, still return true to avoid disclosing valid emails
-      return true;
-    } catch (_) {
-      // If endpoint not implemented, still return success to keep UI consistent
-      return true;
-    }
   }
 }

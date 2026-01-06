@@ -23,63 +23,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _showForgotDialog() async {
-    final emailCtrl = TextEditingController(text: _email.text.trim());
-    final formKey = GlobalKey<FormState>();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Reset Password'),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: emailCtrl,
-            keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
-              labelText: 'Email',
-              prefixIcon: const Icon(Icons.email_outlined),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Email wajib diisi';
-              if (!v.contains('@')) return 'Email tidak valid';
-              return null;
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) Navigator.pop(context, true);
-            },
-            child: const Text('Kirim'),
-          ),
-        ],
-      ),
-    ) ??
-        false;
-
-    if (!ok) return;
-    final auth = context.read<AuthProvider>();
-    final sent = await auth.forgotPassword(emailCtrl.text.trim());
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          sent
-              ? 'Jika email terdaftar, tautan reset telah dikirim.'
-              : 'Permintaan reset gagal. Coba lagi nanti.',
-        ),
-        backgroundColor: sent ? Colors.green : Colors.red,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -130,11 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.motorcycle,
-                        size: 70,
-                        color: Colors.white,
-                      ),
+                      Icon(Icons.motorcycle, size: 70, color: Colors.white),
                       const SizedBox(height: 16),
                       const Text(
                         'Selamat Datang',
@@ -147,10 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 6),
                       const Text(
                         'Login untuk melanjutkan',
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: Colors.white70,
-                        ),
+                        style: TextStyle(fontSize: 15, color: Colors.white70),
                       ),
                     ],
                   ),
@@ -179,8 +115,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Email tidak boleh kosong';
-                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) {
+                          if (v == null || v.isEmpty)
+                            return 'Email tidak boleh kosong';
+                          if (!RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                          ).hasMatch(v)) {
                             return 'Format email tidak valid';
                           }
                           return null;
@@ -202,7 +141,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   : Icons.visibility_off_outlined,
                             ),
                             onPressed: () {
-                              setState(() => _obscurePassword = !_obscurePassword);
+                              setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              );
                             },
                           ),
                           border: OutlineInputBorder(
@@ -210,26 +151,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Password tidak boleh kosong';
+                          if (v == null || v.isEmpty)
+                            return 'Password tidak boleh kosong';
                           return null;
                         },
                       ),
                       const SizedBox(height: 8),
 
-                      // Forgot Password
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: _showForgotDialog,
-                          child: const Text(
-                            'Lupa Password?',
-                            style: TextStyle(
-                              color: Color(0xFF002F34),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
                       const SizedBox(height: 16),
 
                       // Error Message
@@ -243,7 +171,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline, color: Colors.red),
+                              const Icon(
+                                Icons.error_outline,
+                                color: Colors.red,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -263,11 +194,16 @@ class _LoginScreenState extends State<LoginScreen> {
                               ? null
                               : () async {
                                   if (_formKey.currentState!.validate()) {
-                                    await auth.login(_email.text.trim(), _password.text);
+                                    await auth.login(
+                                      _email.text.trim(),
+                                      _password.text,
+                                    );
                                     if (auth.currentUser != null && mounted) {
                                       Navigator.pushReplacement(
                                         context,
-                                        MaterialPageRoute(builder: (_) => const HomeScreen()),
+                                        MaterialPageRoute(
+                                          builder: (_) => const HomeScreen(),
+                                        ),
                                       );
                                     }
                                   }
@@ -283,7 +219,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   width: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
                                   ),
                                 )
                               : const Text(
@@ -308,13 +246,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextButton(
                             onPressed: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                              MaterialPageRoute(
+                                builder: (_) => const RegisterScreen(),
+                              ),
                             ),
                             child: const Text(
                               'Daftar',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
